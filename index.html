@@ -82,6 +82,7 @@
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
     .footer{text-align:center;padding:30px 20px 20px;color:#94a3b8;font-size:13px;border-top:1px solid #f1f5f9;margin-top:40px}
     .copy-tip{margin-top:6px;font-size:12px;color:#94a3b8}
+    .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
     @media(max-width:700px){.container{padding:20px 16px}.card{padding:20px}.flex-row{flex-direction:column}.qr-wrap canvas,.qr-wrap img{width:170px;height:170px}.hero h1{font-size:40px}.step{padding-left:16px;padding-top:44px}.step::before{top:12px;left:50%;transform:translateX(-50%)}}
   </style>
 </head>
@@ -102,8 +103,9 @@
         <div class="section-title">Комната передачи</div>
         <div class="section-sub" id="roomStatus">Ожидание подключения…</div>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-sm btn-outline" id="copyBtn">Копировать ссылку</button>
+        <button class="btn btn-sm btn-outline" id="copyQrBtn">Копировать QR</button>
         <button class="btn btn-sm btn-danger" id="closeBtn">Закрыть</button>
       </div>
     </div>
@@ -111,7 +113,9 @@
       <div style="text-align:center;padding:10px 0;">
         <div class="qr-wrap" id="qrContainer"><div id="qr"></div></div>
         <div class="qr-caption"><strong>QR-код</strong><span id="qrMode">Нажмите на QR, чтобы скопировать ссылку</span></div>
-        <div class="copy-tip">Нажмите на QR → ссылка скопирована</div>
+        <div class="qr-actions">
+          <button class="btn btn-sm btn-outline" id="copyQrBtn2">Скопировать QR</button>
+        </div>
         <div style="margin-top:12px;"><span class="status-badge" id="peerBadge">🔴 Ожидание</span></div>
       </div>
       <div>
@@ -160,7 +164,7 @@
     <div class="step" data-step="1" id="step1">
       <h3>Создайте комнату</h3>
       <p>Нажмите «Создать передачу» — появится QR-код и ссылка.</p>
-      <div class="hint">Ссылка копируется по клику на QR или кнопкой «Копировать ссылку».</div>
+      <div class="hint">Ссылка копируется по клику на QR, кнопкой «Копировать ссылку» или «Копировать QR» для сохранения изображения.</div>
     </div>
     <div class="step" data-step="2" id="step2">
       <h3>Отправьте ссылку получателю</h3>
@@ -236,6 +240,37 @@ function makeInvite(){return location.href.split('#')[0]+'#qrshare='+encodeURICo
 function parseInvite(v){try{const url=new URL(v.trim(),location.href);const raw=url.hash.startsWith('#qrshare=')?url.hash.slice(9):null;if(!raw)return null;const d=JSON.parse(decodeURIComponent(raw));return d?.p?d:null;}catch{return null;}}
 function drawQR(){const box=$('#qr');box.innerHTML='';const data=makeInvite();new QRCode(box,{text:data,width:220,height:220,colorDark:'#1e293b',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}
 function copyInvite(){const link=makeInvite();navigator.clipboard.writeText(link).then(()=>{toast('Ссылка скопирована');}).catch(()=>{prompt('Скопируйте ссылку:',link);});}
+function copyQRImage(){
+  const qrDiv=document.getElementById('qr');
+  const canvas=qrDiv.querySelector('canvas');
+  if(!canvas){toast('QR ещё не сгенерирован');return;}
+  canvas.toBlob(blob=>{
+    if(!blob){toast('Не удалось создать изображение');return;}
+    try{
+      navigator.clipboard.write([
+        new ClipboardItem({[blob.type]:blob})
+      ]).then(()=>{
+        toast('QR-код скопирован как изображение');
+      }).catch(()=>{
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download='qrshare.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast('Изображение скачано (копирование не поддерживается)');
+      });
+    }catch(e){
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='qrshare.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('Изображение скачано');
+    }
+  },'image/png');
+}
 function createPeer(){return new Promise((resolve,reject)=>{const peer=new Peer(undefined,PEER_OPTIONS);state.peer=peer;peer.on('open',id=>{state.peerId=id;resolve(id);});peer.on('error',err=>{console.error(err);reject(err);});peer.on('connection',conn=>{if(state.role!=='sender')return;state.conn=conn;bindConnection(conn,'sender');updateStatus('Устройство подключено',true);toast('Подключение установлено');});});}
 function bindConnection(conn,role){state.conn=conn;conn.on('open',()=>{if(role==='sender'){updateStatus('Готово к передаче',true);toast('Канал готов');processQueue();}else{updatePeerStatus('Канал готов — можно получать файлы',true);toast('Подключено');}});conn.on('data',data=>{if(role==='receiver')receiveMessage(data);});conn.on('close',()=>{if(role==='receiver')updatePeerStatus('Соединение закрыто',false);else updateStatus('Устройство отключено',false);toast('Соединение разорвано');});conn.on('error',e=>{console.error(e);toast('Ошибка канала');});}
 function updateStatus(msg,connected){const el=$('#roomStatus');if(el)el.textContent=msg;const badge=$('#peerBadge');if(badge){badge.textContent=(connected?'🟢 ':'🔴 ')+(connected?'Подключено':'Ожидание');}updateSteps();}
@@ -300,6 +335,8 @@ $('#backBtn').addEventListener('click',()=>{stopScanner();if(state.conn)state.co
 $('#chooseBtn').addEventListener('click',()=>$('#fileInput').click());
 $('#fileInput').addEventListener('change',e=>uploadSelected(e.target.files));
 $('#copyBtn').addEventListener('click',copyInvite);
+$('#copyQrBtn').addEventListener('click',copyQRImage);
+$('#copyQrBtn2').addEventListener('click',copyQRImage);
 $('#qrContainer').addEventListener('click',()=>{const el=$('#qrContainer');el.classList.remove('clicked');void el.offsetWidth;el.classList.add('clicked');copyInvite();});
 $('#closeBtn').addEventListener('click',()=>{if(state.conn)state.conn.close();if(state.peer)state.peer.destroy();state.peer=null;state.conn=null;state.fileQueue=[];state.sending=false;showPanel(null);toast('Комната закрыта');});
 $('#leaveBtn').addEventListener('click',()=>{if(state.conn)state.conn.close();state.conn=null;state.peer=null;showPanel(null);toast('Соединение закрыто');});
