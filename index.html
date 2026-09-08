@@ -1,206 +1,425 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QR Share — передача файлов по QR</title>
-  <meta name="description" content="Cервис для P2P-передачи файлов через QR-код и WebRTC. Без регистрации и серверов.">
-  <link rel="icon" href="images/ico.ico" type="image/x-icon">
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8faff;color:#1e293b;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
-    .container{max-width:1080px;margin:0 auto;padding:40px 24px 20px;flex:1}
-    .hero{text-align:center;padding:20px 0 40px}
-    .hero h1{font-size:clamp(44px,8vw,78px);font-weight:700;letter-spacing:-0.04em;margin:0 0 12px;background:linear-gradient(145deg,#2563eb,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    .hero p{font-size:18px;color:#475569;max-width:560px;margin:0 auto 28px}
-    .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-    .btn{display:inline-block;padding:13px 32px;border-radius:60px;font-weight:600;font-size:16px;border:none;background:#eef2f6;color:#1e293b;transition:all .2s ease;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.02);text-decoration:none}
-    .btn-primary{background:#2563eb;color:#fff;box-shadow:0 8px 24px rgba(37,99,235,0.25)}
-    .btn-primary:hover{background:#1d4ed8;transform:translateY(-2px);box-shadow:0 12px 32px rgba(37,99,235,0.35)}
-    .btn-outline{background:transparent;border:1.5px solid #cbd5e1}
-    .btn-outline:hover{border-color:#94a3b8;background:#f1f5f9}
-    .btn-sm{padding:8px 18px;font-size:14px}
-    .btn-danger{color:#dc2626;border-color:#fecaca}
-    .btn-danger:hover{background:#fef2f2;border-color:#f87171}
-    .btn-success{background:#16a34a;color:#fff}
-    .btn-success:hover{background:#15803d}
-    .card{background:#ffffff;border-radius:28px;box-shadow:0 8px 30px rgba(0,0,0,0.04),0 2px 8px rgba(0,0,0,0.02);padding:28px 32px;border:1px solid #f1f5f9;transition:box-shadow .25s;margin-bottom:24px}
-    .card:hover{box-shadow:0 20px 48px rgba(0,0,0,0.06)}
-    .hidden{display:none!important}
-    .section-title{font-size:24px;font-weight:700;letter-spacing:-0.02em;margin-bottom:6px}
-    .section-sub{color:#64748b;font-size:14px;margin-bottom:20px}
-    .flex-row{display:flex;gap:24px;flex-wrap:wrap;align-items:stretch}
-    .flex-row>*{flex:1;min-width:280px}
-    .qr-wrap{background:#fff;padding:20px;border-radius:24px;display:inline-block;box-shadow:0 8px 24px rgba(0,0,0,0.04);cursor:pointer;transition:transform .2s,box-shadow .2s;user-select:none;-webkit-tap-highlight-color:transparent}
-    .qr-wrap:active{transform:scale(0.96);box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-    .qr-wrap.clicked{animation:qrPulse .4s ease}
-    @keyframes qrPulse{
-      0%{transform:scale(1)}
-      30%{transform:scale(0.92);opacity:.7}
-      70%{transform:scale(0.98);opacity:.9}
-      100%{transform:scale(1);opacity:1}
-    }
-    .qr-wrap canvas,.qr-wrap img{display:block;width:220px;height:220px;pointer-events:none}
-    .qr-caption{margin-top:16px;font-size:14px;color:#475569}
-    .qr-caption strong{display:block;font-weight:600;color:#1e293b}
-    .drop-zone{border:2px dashed #d1d9e6;border-radius:24px;padding:40px 20px;text-align:center;background:#fafcff;transition:all .2s;cursor:pointer}
-    .drop-zone.drag{border-color:#2563eb;background:#eff6ff}
-    .drop-zone strong{display:block;font-size:18px;font-weight:600}
-    .drop-zone span{color:#64748b;font-size:14px}
-    .drop-zone .btn{margin-top:16px}
-    .file-list{margin-top:20px}
-    .file-item{display:grid;grid-template-columns:40px 1fr auto;gap:14px;padding:14px 0;border-bottom:1px solid #f1f5f9;align-items:center}
-    .file-item:last-child{border-bottom:none}
-    .file-icon{width:40px;height:40px;border-radius:12px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;color:#475569}
-    .file-icon svg{width:24px;height:24px;display:block}
-    .file-info{overflow:hidden}
-    .file-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .file-meta{font-size:12px;color:#94a3b8;margin-top:2px}
-    .progress-bar{height:4px;background:#e9edf2;border-radius:8px;overflow:hidden;margin-top:6px}
-    .progress-bar .fill{display:block;height:100%;width:0%;background:#2563eb;transition:width .15s ease}
-    .file-status{font-size:12px;color:#64748b;white-space:nowrap}
-    .empty-state{text-align:center;color:#94a3b8;padding:30px 0;font-size:14px}
-    .scanner-box{background:#f1f5f9;border-radius:24px;padding:10px;min-height:320px;display:flex;align-items:center;justify-content:center}
-    .scanner-box #reader{width:100%}
-    .manual-input{display:flex;gap:10px;margin-top:16px}
-    .manual-input input{flex:1;padding:12px 18px;border:1px solid #d1d9e6;border-radius:60px;background:#fff;font-size:14px;outline:none;transition:.2s}
-    .manual-input input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
-    .steps{display:flex;flex-direction:column;gap:16px;margin:30px 0 10px}
-    .step{background:#ffffff;border-radius:20px;padding:20px 24px;border:1px solid #e9edf2;transition:all .3s ease;position:relative;padding-left:48px}
-    .step::before{content:attr(data-num);position:absolute;left:16px;top:50%;transform:translateY(-50%);width:24px;height:24px;background:#eef2f6;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#94a3b8;transition:background .3s,color .3s}
-    .step.active{border-color:#2563eb;background:#f8faff;box-shadow:0 4px 12px rgba(37,99,235,0.08)}
-    .step.active::before{background:#2563eb;color:#fff}
-    .step.done{border-color:#d1fae5;background:#f0fdf4}
-    .step.done::before{background:#16a34a;color:#fff}
-    .step h3{font-size:17px;font-weight:600;margin-bottom:4px}
-    .step p{font-size:14px;color:#475569;margin:0}
-    .step .hint{font-size:13px;color:#64748b;margin-top:6px;border-left:3px solid #dbeafe;padding-left:12px}
-    .status-badge{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;background:#eef2f6;padding:4px 14px 4px 10px;border-radius:40px;color:#1e293b}
-    .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(80px);background:#1e293b;color:#f8fafc;padding:12px 24px;border-radius:60px;font-weight:500;font-size:14px;box-shadow:0 12px 40px rgba(0,0,0,0.12);opacity:0;transition:all .3s ease;pointer-events:none;z-index:999}
-    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-    .footer{text-align:center;padding:30px 20px 20px;color:#94a3b8;font-size:13px;border-top:1px solid #f1f5f9;margin-top:40px}
-    .copy-tip{margin-top:6px;font-size:12px;color:#94a3b8}
-    .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
-    @media(max-width:700px){.container{padding:20px 16px}.card{padding:20px}.flex-row{flex-direction:column}.qr-wrap canvas,.qr-wrap img{width:170px;height:170px}.hero h1{font-size:40px}.step{padding-left:16px;padding-top:44px}.step::before{top:12px;left:50%;transform:translateX(-50%)}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Share — send files with a QR code</title>
+<meta name="description" content="Peer-to-peer file transfer over WebRTC, started with a QR code scan. No accounts, no uploads, no server in between.">
+<link rel="icon" href="images/ico.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{
+  --ink:#12151c;
+  --ink-soft:#4b5462;
+  --muted:#8992a0;
+  --paper:#f3f5f9;
+  --surface:#ffffff;
+  --line:#e0e4eb;
+  --line-strong:#c7cdd7;
+  --accent:#2f4de0;
+  --accent-ink:#ffffff;
+  --accent-soft:#e9edfd;
+  --good:#12946a;
+  --good-soft:#e4f6ee;
+  --bad:#d1483f;
+  --bad-soft:#fbeae8;
+  --radius-lg:24px;
+  --radius-md:16px;
+  --radius-sm:11px;
+  --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(18,21,28,0.04);
+  --shadow-lift:0 16px 40px -20px rgba(18,21,28,0.28);
+  --font-display:'Space Grotesk',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font-body);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.55;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+::selection{background:var(--accent-soft);color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button,input{font-family:inherit}
+
+.container{max-width:760px;margin:0 auto;padding:0 24px;width:100%;flex:1}
+
+.top{display:flex;align-items:center;gap:10px;padding:28px 0 0}
+.top .mark{width:26px;height:26px;border-radius:8px;background:var(--ink);position:relative;flex:none}
+.top .mark::before,.top .mark::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:var(--paper);top:50%;transform:translateY(-50%)}
+.top .mark::before{left:4px}
+.top .mark::after{right:4px}
+.top span{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-0.01em}
+
+.hero{
+  position:relative;
+  text-align:center;
+  padding:64px 0 40px;
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+}
+.hero::before{
+  content:"";
+  position:absolute;inset:0;
+  background-image:radial-gradient(var(--line-strong) 1px,transparent 1px);
+  background-size:22px 22px;
+  -webkit-mask-image:radial-gradient(ellipse 60% 100% at 50% 0%,#000 30%,transparent 75%);
+  mask-image:radial-gradient(ellipse 60% 100% at 50% 0%,#000 30%,transparent 75%);
+  opacity:0.5;
+  pointer-events:none;
+}
+.link-glyph{position:relative;display:flex;justify-content:center;align-items:center;gap:0;margin-bottom:22px;height:34px}
+.link-glyph .node{width:11px;height:11px;border-radius:50%;background:var(--ink);flex:none;z-index:1}
+.link-glyph .wire{width:120px;height:2px;position:relative;overflow:hidden}
+.link-glyph .wire::before{
+  content:"";
+  position:absolute;inset:0;
+  background-image:linear-gradient(to right,var(--line-strong) 50%,transparent 50%);
+  background-size:10px 2px;
+}
+.link-glyph .wire::after{
+  content:"";
+  position:absolute;top:0;left:-40%;width:40%;height:2px;
+  background:var(--accent);
+  animation:pulse-travel 2.6s ease-in-out infinite;
+}
+@keyframes pulse-travel{
+  0%{left:-40%}
+  50%{left:100%}
+  100%{left:100%}
+}
+@media (prefers-reduced-motion:reduce){.link-glyph .wire::after{animation:none;left:30%}}
+
+.hero h1{
+  position:relative;
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:clamp(32px,5.6vw,46px);
+  letter-spacing:-0.03em;
+  line-height:1.08;
+  margin:0 0 14px;
+}
+.hero p{
+  position:relative;
+  font-size:16.5px;
+  color:var(--ink-soft);
+  max-width:440px;
+  margin:0 auto 30px;
+}
+.actions{position:relative;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 26px;border-radius:var(--radius-pill);
+  font-weight:600;font-size:15px;border:1px solid transparent;
+  background:var(--surface);color:var(--ink);
+  transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease;
+  cursor:pointer;text-decoration:none;line-height:1;
+}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--ink);color:#fff;box-shadow:var(--shadow-lift)}
+.btn-primary:hover{background:#20242e}
+.btn-outline{background:var(--surface);border-color:var(--line-strong)}
+.btn-outline:hover{border-color:var(--ink);background:var(--surface)}
+.btn-sm{padding:9px 18px;font-size:13.5px}
+.btn-danger{color:var(--bad);border-color:var(--line-strong)}
+.btn-danger:hover{background:var(--bad-soft);border-color:var(--bad)}
+.btn-success{background:var(--good);color:#fff}
+.btn-success:hover{background:#0d7d59}
+
+.panel{
+  background:var(--surface);
+  border-radius:var(--radius-lg);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-card);
+  padding:30px;
+  margin-bottom:22px;
+}
+.hidden{display:none!important}
+
+.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+.panel-title{font-family:var(--font-display);font-size:21px;font-weight:700;letter-spacing:-0.015em}
+.panel-sub{color:var(--ink-soft);font-size:13.5px;margin-top:4px}
+.panel-tools{display:flex;gap:8px;flex-wrap:wrap}
+
+.grid{display:flex;gap:28px;flex-wrap:wrap;align-items:stretch}
+.grid>*{flex:1;min-width:270px}
+
+.qr-col{text-align:center}
+.qr-frame{
+  background:var(--surface);
+  padding:18px;border-radius:var(--radius-md);
+  display:inline-block;
+  border:1px solid var(--line);
+  cursor:pointer;
+  transition:transform .15s ease,border-color .15s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.qr-frame:hover{border-color:var(--line-strong)}
+.qr-frame:active{transform:scale(0.97)}
+.qr-frame.clicked{animation:qr-pulse .38s ease}
+@keyframes qr-pulse{
+  0%{transform:scale(1)}
+  35%{transform:scale(0.93);opacity:.75}
+  100%{transform:scale(1);opacity:1}
+}
+.qr-frame canvas,.qr-frame img{display:block;width:200px;height:200px;pointer-events:none}
+.qr-caption{margin-top:14px;font-size:13px;color:var(--muted)}
+.qr-actions{margin-top:12px;display:flex;justify-content:center}
+
+.badge{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-size:12px;font-weight:500;
+  background:var(--paper);padding:6px 13px 6px 10px;border-radius:var(--radius-pill);
+  color:var(--ink-soft);margin-top:16px;border:1px solid var(--line);
+}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--bad);flex:none}
+.badge.on{color:var(--good);border-color:var(--good-soft);background:var(--good-soft)}
+.badge.on .dot{background:var(--good)}
+
+.drop-zone{
+  border:1.5px dashed var(--line-strong);border-radius:var(--radius-md);
+  padding:34px 18px;text-align:center;background:var(--paper);
+  transition:border-color .15s ease,background-color .15s ease;cursor:pointer;
+}
+.drop-zone.drag{border-color:var(--accent);background:var(--accent-soft)}
+.drop-zone strong{display:block;font-size:16px;font-weight:600;margin-bottom:3px}
+.drop-zone span{color:var(--muted);font-size:13.5px}
+.drop-zone .btn{margin-top:16px}
+
+.file-list{margin-top:18px}
+.file-item{display:grid;grid-template-columns:38px 1fr auto;gap:13px;padding:13px 0;border-bottom:1px solid var(--line);align-items:center}
+.file-item:last-child{border-bottom:none}
+.file-icon{width:38px;height:38px;border-radius:10px;background:var(--paper);display:flex;align-items:center;justify-content:center;flex:none}
+.file-icon svg{width:20px;height:20px;display:block}
+.file-info{overflow:hidden}
+.file-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-meta{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin-top:3px}
+.progress-bar{height:3px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:7px}
+.progress-bar .fill{display:block;height:100%;width:0%;background:var(--accent);transition:width .15s ease}
+.file-status{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);white-space:nowrap}
+.file-status.done{color:var(--good)}
+.file-status.failed{color:var(--bad)}
+.empty-state{text-align:center;color:var(--muted);padding:26px 0;font-size:13.5px}
+
+.note{margin-top:18px;font-size:12.5px;color:var(--ink-soft);background:var(--paper);padding:12px 16px;border-radius:var(--radius-sm);display:flex;align-items:center;gap:8px;border:1px solid var(--line)}
+.note svg{flex:none;width:15px;height:15px;color:var(--good)}
+
+.scanner-box{background:var(--ink);border-radius:var(--radius-md);padding:8px;min-height:300px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.scanner-box #reader{width:100%;border-radius:calc(var(--radius-md) - 8px);overflow:hidden}
+
+.divider-row{display:flex;align-items:center;gap:12px;margin:20px 0 16px;color:var(--muted);font-size:12px}
+.divider-row::before,.divider-row::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.manual-input{display:flex;gap:10px}
+.manual-input input{
+  flex:1;padding:12px 18px;border:1px solid var(--line-strong);border-radius:var(--radius-pill);
+  background:var(--surface);font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.manual-input input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+.camera-note{margin-top:14px;font-size:12.5px;color:var(--muted);text-align:center}
+
+.guide{margin:56px 0 24px}
+.guide-head{text-align:center;margin-bottom:28px}
+.guide-head h2{font-family:var(--font-display);font-size:24px;font-weight:700;letter-spacing:-0.02em}
+.guide-head p{color:var(--ink-soft);font-size:14px;margin-top:6px}
+
+.path{position:relative;display:flex;flex-direction:column;gap:0}
+.path::before{
+  content:"";position:absolute;left:19px;top:14px;bottom:14px;width:2px;
+  background:var(--line);
+}
+.path-step{position:relative;display:flex;gap:18px;padding:16px 0}
+.path-step .node{
+  flex:none;width:38px;height:38px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--line-strong);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-weight:500;font-size:13px;color:var(--muted);
+  transition:border-color .2s,background-color .2s,color .2s;z-index:1;
+}
+.path-step.active .node{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.path-step.done .node{border-color:var(--good);background:var(--good);color:#fff}
+.path-step .body{padding-top:5px}
+.path-step h3{font-size:15.5px;font-weight:700;margin-bottom:3px}
+.path-step p{font-size:13.5px;color:var(--ink-soft)}
+
+.foot{text-align:center;padding:34px 20px 26px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);margin-top:36px}
+
+.toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);
+  background:var(--ink);color:#f5f6f8;padding:12px 22px;border-radius:var(--radius-pill);
+  font-weight:500;font-size:13.5px;box-shadow:0 16px 40px rgba(18,21,28,0.22);
+  opacity:0;transition:all .3s ease;pointer-events:none;z-index:999;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  .container{padding:0 16px}
+  .panel{padding:22px}
+  .grid{flex-direction:column}
+  .qr-frame canvas,.qr-frame img{width:180px;height:180px}
+  .hero{padding:44px 0 30px}
+  .path::before{left:17px}
+}
+</style>
 </head>
 <body>
 <div class="container">
+  <div class="top"><div class="mark"></div><span>QR Share</span></div>
+
   <section class="hero">
-    <h1>QR Share</h1>
-    <p>Передавайте файлы напрямую между устройствами. Просто отсканируйте QR-код — и файлы уходят P2P, минуя сервер.</p>
+    <div class="link-glyph"><div class="node"></div><div class="wire"></div><div class="node"></div></div>
+    <h1>Send files, device to device.</h1>
+    <p>Scan a code, open a direct connection, and move files straight between two browsers. Nothing passes through a server, and nothing is stored.</p>
     <div class="actions">
-      <button class="btn btn-primary" id="createBtn">Создать передачу</button>
-      <button class="btn btn-outline" id="scanBtn">Подключиться по QR</button>
+      <button class="btn btn-primary" id="createBtn">Start sending</button>
+      <button class="btn btn-outline" id="scanBtn">Scan to receive</button>
     </div>
   </section>
 
-  <section id="room" class="card hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+  <section id="room" class="panel hidden">
+    <div class="panel-head">
       <div>
-        <div class="section-title">Комната передачи</div>
-        <div class="section-sub" id="roomStatus">Ожидание подключения…</div>
+        <div class="panel-title">Transfer room</div>
+        <div class="panel-sub" id="roomStatus" aria-live="polite">Opening a channel…</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-outline" id="copyBtn">Копировать ссылку</button>
-        <button class="btn btn-sm btn-outline" id="copyQrBtn">Копировать QR</button>
-        <button class="btn btn-sm btn-danger" id="closeBtn">Закрыть</button>
+      <div class="panel-tools">
+        <button class="btn btn-sm btn-outline" id="copyBtn">Copy link</button>
+        <button class="btn btn-sm btn-danger" id="closeBtn">End session</button>
       </div>
     </div>
-    <div class="flex-row">
-      <div style="text-align:center;padding:10px 0;">
-        <div class="qr-wrap" id="qrContainer"><div id="qr"></div></div>
-        <div class="qr-caption"><strong>QR-код</strong><span id="qrMode">Нажмите на QR, чтобы скопировать ссылку</span></div>
-        <div class="qr-actions">
-          <button class="btn btn-sm btn-outline" id="copyQrBtn2">Скопировать QR</button>
-        </div>
-        <div style="margin-top:12px;"><span class="status-badge" id="peerBadge">🔴 Ожидание</span></div>
+    <div class="grid">
+      <div class="qr-col">
+        <div class="qr-frame" id="qrContainer" role="button" tabindex="0" aria-label="Copy invite link"><div id="qr"></div></div>
+        <div class="qr-caption">Tap the code to copy its link</div>
+        <div class="qr-actions"><button class="btn btn-sm btn-outline" id="copyQrBtn">Copy QR image</button></div>
+        <div class="badge" id="peerBadge"><span class="dot"></span>Waiting</div>
       </div>
       <div>
         <div class="drop-zone" id="dropZone">
-          <strong>Перетащите файлы сюда</strong>
-          <span>или выберите вручную</span>
-          <button class="btn btn-primary btn-sm" id="chooseBtn">Выбрать файлы</button>
+          <strong>Drop files here</strong>
+          <span>or choose them manually</span>
+          <button class="btn btn-primary btn-sm" id="chooseBtn">Choose files</button>
           <input type="file" id="fileInput" multiple style="display:none;">
         </div>
-        <div class="file-list" id="senderFiles"><div class="empty-state">Файлы появятся после выбора</div></div>
-        <div style="margin-top:16px;font-size:13px;color:#64748b;background:#f8fafc;padding:12px 16px;border-radius:16px;">
-          <span class="status-badge" style="background:transparent;padding-left:0;">🟢 WebRTC P2P — данные не сохраняются</span>
+        <div class="file-list" id="senderFiles"><div class="empty-state">Files you send will appear here</div></div>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Sent directly, peer-to-peer — nothing touches a server
         </div>
       </div>
     </div>
   </section>
 
-  <section id="join" class="card hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <div><div class="section-title">Подключение</div><div class="section-sub">Наведите камеру на QR-код отправителя</div></div>
-      <button class="btn btn-sm btn-outline" id="backBtn">Назад</button>
+  <section id="join" class="panel hidden">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Connect</div>
+        <div class="panel-sub">Point your camera at the sender's QR code</div>
+      </div>
+      <button class="btn btn-sm btn-outline" id="backBtn">Back</button>
     </div>
-    <div class="scanner-box"><div id="reader" style="width:100%;"></div></div>
+    <div class="scanner-box"><div id="reader"></div></div>
+    <div class="divider-row">or</div>
     <div class="manual-input">
-      <input type="text" id="manualInput" placeholder="Вставьте ссылку-приглашение вручную">
-      <button class="btn btn-primary btn-sm" id="manualBtn">Подключиться</button>
+      <input type="text" id="manualInput" placeholder="Paste the invite link" aria-label="Invite link">
+      <button class="btn btn-primary btn-sm" id="manualBtn">Connect</button>
     </div>
-    <div style="margin-top:12px;font-size:13px;color:#64748b;background:#f8fafc;padding:10px 16px;border-radius:16px;">
-      Для работы камеры требуется HTTPS. Если камера недоступна — используйте ручной ввод.
+    <div class="camera-note">Camera access needs HTTPS. If it's unavailable, paste the link instead.</div>
+  </section>
+
+  <section id="receive" class="panel hidden">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Connected</div>
+        <div class="panel-sub" id="peerStatus" aria-live="polite">Opening the channel…</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="badge on" style="margin-top:0;"><span class="dot"></span>P2P · WebRTC</span>
+        <button class="btn btn-sm btn-outline" id="leaveBtn">Disconnect</button>
+      </div>
+    </div>
+    <div class="panel-title" style="font-size:16px;margin-bottom:12px;">Incoming files</div>
+    <div class="file-list" id="receiverFiles"><div class="empty-state">Waiting for the sender to add files…</div></div>
+  </section>
+
+  <section class="guide">
+    <div class="guide-head">
+      <h2>How a transfer works</h2>
+      <p>Four steps, no accounts, no waiting room.</p>
+    </div>
+    <div class="path" id="stepsContainer">
+      <div class="path-step" data-step="1" id="step1">
+        <div class="node">1</div>
+        <div class="body"><h3>Open a room</h3><p>Start sending and a QR code appears instantly, along with a link you can share instead.</p></div>
+      </div>
+      <div class="path-step" data-step="2" id="step2">
+        <div class="node">2</div>
+        <div class="body"><h3>Share the code</h3><p>Let the other device scan it with a camera, or paste the copied link directly.</p></div>
+      </div>
+      <div class="path-step" data-step="3" id="step3">
+        <div class="node">3</div>
+        <div class="body"><h3>Wait for the handshake</h3><p>The moment the two devices meet, the status turns green — no delay, no approval step.</p></div>
+      </div>
+      <div class="path-step" data-step="4" id="step4">
+        <div class="node">4</div>
+        <div class="body"><h3>Drop your files</h3><p>Drag files into the room and they stream straight to the other device as they go.</p></div>
+      </div>
     </div>
   </section>
 
-  <section id="receive" class="card hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
-      <div><div class="section-title">Подключено</div><div class="section-sub" id="peerStatus">Канал устанавливается…</div></div>
-      <span class="status-badge">🟢 P2P · WebRTC</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3 style="font-size:20px;font-weight:600;">Файлы для скачивания</h3>
-      <button class="btn btn-sm btn-outline" id="leaveBtn">Покинуть</button>
-    </div>
-    <div class="file-list" id="receiverFiles"><div class="empty-state">Ожидание файлов…</div></div>
-  </section>
-
-  <div class="steps" id="stepsContainer">
-    <div class="step" data-step="1" id="step1">
-      <h3>Создайте комнату</h3>
-      <p>Нажмите «Создать передачу» — появится QR-код и ссылка.</p>
-      <div class="hint">Ссылка копируется по клику на QR, кнопкой «Копировать ссылку» или «Копировать QR» для сохранения изображения.</div>
-    </div>
-    <div class="step" data-step="2" id="step2">
-      <h3>Отправьте ссылку получателю</h3>
-      <p>Перешлите скопированную ссылку второму устройству (через мессенджер, email).</p>
-      <div class="hint">Получатель откроет ссылку и нажмёт «Подключиться по QR» или вставит ссылку вручную.</div>
-    </div>
-    <div class="step" data-step="3" id="step3">
-      <h3>Дождитесь подключения</h3>
-      <p>Когда получатель подключится — индикатор станет зелёным.</p>
-      <div class="hint">Если соединение не устанавливается, проверьте интернет и попробуйте снова.</div>
-    </div>
-    <div class="step" data-step="4" id="step4">
-      <h3>Передавайте файлы</h3>
-      <p>Перетащите файлы в область — передача начнётся автоматически.</p>
-      <div class="hint">Получатель увидит прогресс и скачает файлы по кнопке «Скачать».</div>
-    </div>
-  </div>
-
-  <div class="footer">QR Share — передача файлов через QR и WebRTC. Никаких серверов, только ваш браузер.</div>
+  <div class="foot">QR Share — files travel peer-to-peer over WebRTC. Nothing is uploaded, cached, or logged.</div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
 const $=s=>document.querySelector(s);
 const state={peer:null,conn:null,role:null,rx:new Map(),scanner:null,peerId:null,fileQueue:[],sending:false};
 const CHUNK_SIZE=256*1024;
 const BUFFER_THRESHOLD=2*1024*1024;
-const PEER_OPTIONS={config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'turn:turn.anyfirewall.com:443?transport=tcp',username:'webrtc',credential:'webrtc'}]}};
+const PEER_OPTIONS={config:{iceServers:[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'turn:turn.anyfirewall.com:443?transport=tcp',username:'webrtc',credential:'webrtc'}
+]}};
 
-function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast._timer);toast._timer=setTimeout(()=>el.classList.remove('show'),2800);}
-function showPanel(id){['room','join','receive'].forEach(x=>{const el=$('#'+x);if(el)el.classList.add('hidden');});if(id){const panel=$('#'+id);if(panel)panel.classList.remove('hidden');}updateSteps();}
-function show(id){showPanel(id);}
-function bytes(n){if(!n)return'0 Б';const units=['Б','КБ','МБ','ГБ','ТБ'];let i=0;while(n>=1024&&i<4){n/=1024;i++;}return n.toFixed(i?1:0)+' '+units[i];}
+function toast(t){
+  const el=$('#toast');
+  el.textContent=t;
+  el.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+function showPanel(id){
+  ['room','join','receive'].forEach(x=>{const el=$('#'+x);if(el)el.classList.add('hidden');});
+  if(id){const panel=$('#'+id);if(panel)panel.classList.remove('hidden');}
+  updateSteps();
+}
+
+function bytes(n){
+  if(!n)return'0 B';
+  const units=['B','KB','MB','GB','TB'];
+  let i=0;
+  while(n>=1024&&i<4){n/=1024;i++;}
+  return n.toFixed(i?1:0)+' '+units[i];
+}
+
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function getFileExt(name){const i=name.lastIndexOf('.');return i>0?name.slice(i+1).toLowerCase():'';}
+
 function fileIconSVG(type,name){
   const ext=getFileExt(name);
   const mime=type||'';
@@ -213,103 +432,139 @@ function fileIconSVG(type,name){
   const isSheet=mime.includes('sheet')||mime.includes('excel')||['xls','xlsx','csv'].includes(ext);
   const isPpt=mime.includes('presentation')||mime.includes('powerpoint')||['ppt','pptx'].includes(ext);
   const isText=mime.startsWith('text/')||['txt','log','md','json','xml','yml','yaml'].includes(ext);
-  let svg='';
-  if(isImage){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
-  }else if(isVideo){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><polygon points="10,8 16,12 10,16"/></svg>`;
-  }else if(isAudio){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
-  }else if(isPdf){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 18v-4"/><path d="M12 12v-2"/><path d="M12 18h.01"/></svg>`;
-  }else if(isZip){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 12v4"/><path d="M10 16h4"/><path d="M12 8v2"/></svg>`;
-  }else if(isDoc){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`;
-  }else if(isSheet){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
-  }else if(isPpt){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 18v-4"/><path d="M8 12v2"/><path d="M16 12v2"/></svg>`;
-  }else if(isText){
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`;
-  }else{
-    svg=`<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>`;
-  }
-  return svg;
+  const stroke='stroke="#4b5462" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+  if(isImage)return `<svg viewBox="0 0 24 24" ${stroke}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+  if(isVideo)return `<svg viewBox="0 0 24 24" ${stroke}><rect x="2" y="2" width="20" height="20" rx="2.5"/><polygon points="10,8 16,12 10,16"/></svg>`;
+  if(isAudio)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+  if(isPdf)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 18v-4"/><path d="M12 12v-2"/><path d="M12 18h.01"/></svg>`;
+  if(isZip)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 12v4"/><path d="M10 16h4"/><path d="M12 8v2"/></svg>`;
+  if(isDoc)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`;
+  if(isSheet)return `<svg viewBox="0 0 24 24" ${stroke}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
+  if(isPpt)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M12 18v-4"/><path d="M8 12v2"/><path d="M16 12v2"/></svg>`;
+  if(isText)return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>`;
+  return `<svg viewBox="0 0 24 24" ${stroke}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>`;
 }
+
 function makeInvite(){return location.href.split('#')[0]+'#qrshare='+encodeURIComponent(JSON.stringify({v:1,p:state.peerId}));}
-function parseInvite(v){try{const url=new URL(v.trim(),location.href);const raw=url.hash.startsWith('#qrshare=')?url.hash.slice(9):null;if(!raw)return null;const d=JSON.parse(decodeURIComponent(raw));return d?.p?d:null;}catch{return null;}}
-function drawQR(){const box=$('#qr');box.innerHTML='';const data=makeInvite();new QRCode(box,{text:data,width:220,height:220,colorDark:'#1e293b',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}
-function copyInvite(){const link=makeInvite();navigator.clipboard.writeText(link).then(()=>{toast('Ссылка скопирована');}).catch(()=>{prompt('Скопируйте ссылку:',link);});}
+function parseInvite(v){
+  try{
+    const url=new URL(v.trim(),location.href);
+    const raw=url.hash.startsWith('#qrshare=')?url.hash.slice(9):null;
+    if(!raw)return null;
+    const d=JSON.parse(decodeURIComponent(raw));
+    return d?.p?d:null;
+  }catch{return null;}
+}
+
+function drawQR(){
+  const box=$('#qr');
+  box.innerHTML='';
+  new QRCode(box,{text:makeInvite(),width:200,height:200,colorDark:'#12151c',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+}
+
+function copyInvite(){
+  const link=makeInvite();
+  navigator.clipboard.writeText(link).then(()=>toast('Link copied')).catch(()=>prompt('Copy this link:',link));
+}
+
 function copyQRImage(){
-  const qrDiv=document.getElementById('qr');
-  const canvas=qrDiv.querySelector('canvas');
-  if(!canvas){toast('QR ещё не сгенерирован');return;}
+  const canvas=$('#qr').querySelector('canvas');
+  if(!canvas){toast('QR code not ready yet');return;}
   canvas.toBlob(blob=>{
-    if(!blob){toast('Не удалось создать изображение');return;}
+    if(!blob){toast('Could not build the image');return;}
     try{
-      navigator.clipboard.write([
-        new ClipboardItem({[blob.type]:blob})
-      ]).then(()=>{
-        toast('QR-код скопирован как изображение');
-      }).catch(()=>{
-        const a=document.createElement('a');
-        a.href=URL.createObjectURL(blob);
-        a.download='qrshare.png';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        toast('Изображение скачано (копирование не поддерживается)');
-      });
+      navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})])
+        .then(()=>toast('QR image copied'))
+        .catch(()=>downloadQRImage(blob,'Copy is not supported here — image downloaded instead'));
     }catch(e){
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download='qrshare.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast('Изображение скачано');
+      downloadQRImage(blob,'Image downloaded');
     }
   },'image/png');
 }
-function createPeer(){return new Promise((resolve,reject)=>{const peer=new Peer(undefined,PEER_OPTIONS);state.peer=peer;peer.on('open',id=>{state.peerId=id;resolve(id);});peer.on('error',err=>{console.error(err);reject(err);});peer.on('connection',conn=>{if(state.role!=='sender')return;state.conn=conn;bindConnection(conn,'sender');updateStatus('Устройство подключено',true);toast('Подключение установлено');});});}
-function bindConnection(conn,role){state.conn=conn;conn.on('open',()=>{if(role==='sender'){updateStatus('Готово к передаче',true);toast('Канал готов');processQueue();}else{updatePeerStatus('Канал готов — можно получать файлы',true);toast('Подключено');}});conn.on('data',data=>{if(role==='receiver')receiveMessage(data);});conn.on('close',()=>{if(role==='receiver')updatePeerStatus('Соединение закрыто',false);else updateStatus('Устройство отключено',false);toast('Соединение разорвано');});conn.on('error',e=>{console.error(e);toast('Ошибка канала');});}
-function updateStatus(msg,connected){const el=$('#roomStatus');if(el)el.textContent=msg;const badge=$('#peerBadge');if(badge){badge.textContent=(connected?'🟢 ':'🔴 ')+(connected?'Подключено':'Ожидание');}updateSteps();}
-function updatePeerStatus(msg,connected){const el=$('#peerStatus');if(el)el.textContent=msg;updateSteps();}
+
+function downloadQRImage(blob,message){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='qrshare.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast(message);
+}
+
+function createPeer(){
+  return new Promise((resolve,reject)=>{
+    const peer=new Peer(undefined,PEER_OPTIONS);
+    state.peer=peer;
+    peer.on('open',id=>{state.peerId=id;resolve(id);});
+    peer.on('error',err=>{console.error(err);reject(err);});
+    peer.on('connection',conn=>{
+      if(state.role!=='sender')return;
+      if(state.conn&&state.conn.open){conn.close();return;}
+      state.conn=conn;
+      bindConnection(conn,'sender');
+      updateStatus('Device connected',true);
+      toast('Device connected');
+    });
+  });
+}
+
+function bindConnection(conn,role){
+  state.conn=conn;
+  conn.on('open',()=>{
+    if(role==='sender'){
+      updateStatus('Ready to send',true);
+      toast('Channel ready');
+      processQueue();
+    }else{
+      updatePeerStatus('Channel ready — you can receive files',true);
+      toast('Connected');
+    }
+  });
+  conn.on('data',data=>{if(role==='receiver')receiveMessage(data);});
+  conn.on('close',()=>{
+    if(role==='receiver')updatePeerStatus('Connection closed',false);
+    else updateStatus('Device disconnected',false);
+    toast('Disconnected');
+  });
+  conn.on('error',e=>{console.error(e);toast('Channel error');});
+}
+
+function updateStatus(msg,connected){
+  const el=$('#roomStatus');if(el)el.textContent=msg;
+  const badge=$('#peerBadge');
+  if(badge){badge.classList.toggle('on',connected);badge.lastChild.textContent=connected?'Connected':'Waiting';}
+  updateSteps();
+}
+function updatePeerStatus(msg){const el=$('#peerStatus');if(el)el.textContent=msg;updateSteps();}
+
 function updateSteps(){
-  const steps=document.querySelectorAll('.step');
-  steps.forEach(s=>s.classList.remove('active','done'));
-  const step1=document.getElementById('step1');
-  const step2=document.getElementById('step2');
-  const step3=document.getElementById('step3');
-  const step4=document.getElementById('step4');
+  document.querySelectorAll('.path-step').forEach(s=>s.classList.remove('active','done'));
+  const step1=$('#step1'),step2=$('#step2'),step3=$('#step3'),step4=$('#step4');
   const roomVisible=!$('#room').classList.contains('hidden');
   const joinVisible=!$('#join').classList.contains('hidden');
   const receiveVisible=!$('#receive').classList.contains('hidden');
-  const connected=state.conn && state.conn.open;
-  const hasFiles=state.fileQueue.length>0 || state.rx.size>0;
-  if(roomVisible && state.peerId){
+  const connected=state.conn&&state.conn.open;
+  const hasFiles=state.fileQueue.length>0||state.rx.size>0;
+
+  if(roomVisible&&state.peerId){
     step1.classList.add('done');
     step2.classList.add('active');
     if(connected){
-      step2.classList.add('done');
-      step3.classList.add('done');
+      step2.classList.add('done');step3.classList.add('done');
       step4.classList.add('active');
-      if(hasFiles) step4.classList.add('done');
+      if(hasFiles)step4.classList.add('done');
     }else{
+      step2.classList.remove('active');
       step3.classList.add('active');
     }
   }else if(joinVisible){
-    step1.classList.add('done');
-    step2.classList.add('done');
-    step3.classList.add('active');
+    step1.classList.add('done');step2.classList.add('done');step3.classList.add('active');
   }else if(receiveVisible){
-    step1.classList.add('done');
-    step2.classList.add('done');
+    step1.classList.add('done');step2.classList.add('done');
     if(connected){
-      step3.classList.add('done');
-      step4.classList.add('active');
-      if(hasFiles) step4.classList.add('done');
+      step3.classList.add('done');step4.classList.add('active');
+      if(hasFiles)step4.classList.add('done');
     }else{
       step3.classList.add('active');
     }
@@ -317,33 +572,217 @@ function updateSteps(){
     step1.classList.add('active');
   }
 }
-async function createRoom(){try{state.role='sender';show('room');updateStatus('Создаём канал…',false);await createPeer();drawQR();updateStatus('Ожидание сканирования QR',false);$('#qrMode').textContent='Нажмите на QR, чтобы скопировать ссылку';}catch(e){toast('Не удалось создать комнату: '+e.message);console.error(e);}}
-function openJoin(){state.role='receiver';show('join');startScanner();}
-async function startScanner(){if(state.scanner)return;state.scanner=new Html5Qrcode('reader');try{await state.scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240}},text=>{const d=parseInvite(text);if(d){stopScanner();connectToPeer(d.p);}},()=>{});}catch(e){console.error(e);toast('Не удалось открыть камеру');}}
-function stopScanner(){if(!state.scanner)return;try{state.scanner.stop();state.scanner.clear();}catch(e){}state.scanner=null;}
-async function connectToPeer(id){try{show('receive');updatePeerStatus('Подключение к отправителю…',false);if(!state.peer){state.peer=new Peer(undefined,PEER_OPTIONS);await new Promise((res,rej)=>{state.peer.on('open',()=>res());state.peer.on('error',rej);});}state.role='receiver';const conn=state.peer.connect(id,{reliable:true});bindConnection(conn,'receiver');}catch(e){console.error(e);toast('Не удалось подключиться');}}
-function sendFile(file){if(!state.conn||!state.conn.open){toast('Сначала подключите устройство');return;}state.fileQueue.push(file);if(!state.sending)processQueue();}
-function processQueue(){if(state.sending)return;if(state.fileQueue.length===0)return;state.sending=true;const file=state.fileQueue.shift();doSendFile(file).then(()=>{state.sending=false;processQueue();}).catch(err=>{console.error('Ошибка отправки файла:',err);toast('Ошибка при отправке: '+err.message);state.sending=false;processQueue();});}
-function doSendFile(file){return new Promise((resolve,reject)=>{const id=crypto.randomUUID();const meta={kind:'start',id,name:file.name,size:file.size,type:file.type||'application/octet-stream',lastModified:file.lastModified};state.conn.send(meta);let offset=0;let sent=0;const row=addSenderRow(id,file);const total=file.size;function sendNextChunk(){if(offset>=total){state.conn.send({kind:'end',id});const metaEl=row.querySelector('.file-meta');if(metaEl)metaEl.textContent=bytes(total)+' · отправлено';const status=row.querySelector('.file-status');if(status)status.textContent='Готово';resolve();return;}if(state.conn.bufferedAmount>BUFFER_THRESHOLD){setTimeout(sendNextChunk,50);return;}const end=Math.min(offset+CHUNK_SIZE,total);const chunk=file.slice(offset,end);chunk.arrayBuffer().then(buf=>{if(!state.conn||!state.conn.open){reject(new Error('Соединение закрыто'));return;}state.conn.send({kind:'chunk',id,offset,data:buf});sent=end;offset=end;const pct=total?(sent/total*100):100;const fill=row.querySelector('.fill');if(fill)fill.style.width=pct+'%';setTimeout(sendNextChunk,5);}).catch(reject);}sendNextChunk();});}
-function addSenderRow(id,file){const wrap=$('#senderFiles');if(wrap.querySelector('.empty-state'))wrap.innerHTML='';const div=document.createElement('div');div.className='file-item';div.id='s-'+id;div.innerHTML='<div class="file-icon">'+fileIconSVG(file.type,file.name)+'</div><div class="file-info"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+bytes(file.size)+' · передача</div><div class="progress-bar"><span class="fill" style="width:0%"></span></div></div><span class="file-status">…</span>';wrap.prepend(div);return div;}
-function receiveMessage(m){if(!m?.kind)return;if(m.kind==='start'){state.rx.set(m.id,{meta:m,parts:[],received:0});renderReceiver();}else if(m.kind==='chunk'){const r=state.rx.get(m.id);if(!r)return;r.parts.push(m.data);r.received+=m.data.byteLength||0;renderReceiver();}else if(m.kind==='end'){const r=state.rx.get(m.id);if(!r)return;const blob=new Blob(r.parts,{type:r.meta.type});r.url=URL.createObjectURL(blob);r.done=true;r.blob=blob;renderReceiver();toast('Файл получен: '+r.meta.name);}}
-function renderReceiver(){const box=$('#receiverFiles');if(!state.rx.size){box.innerHTML='<div class="empty-state">Ожидание файлов…</div>';return;}box.innerHTML='';state.rx.forEach((r,id)=>{const div=document.createElement('div');div.className='file-item';const pct=r.meta.size?Math.min(100,r.received/r.meta.size*100):0;div.innerHTML='<div class="file-icon">'+fileIconSVG(r.meta.type,r.meta.name)+'</div><div class="file-info"><div class="file-name">'+esc(r.meta.name)+'</div><div class="file-meta">'+bytes(r.received)+' / '+bytes(r.meta.size)+'</div><div class="progress-bar"><span class="fill" style="width:'+pct+'%"></span></div></div>'+(r.done?'<button class="btn btn-sm btn-success" data-id="'+id+'">Скачать</button>':'<span class="file-status">…</span>');if(r.done){const btn=div.querySelector('button');btn.addEventListener('click',()=>downloadBlob(r.blob,r.meta.name));}box.appendChild(div);});updateSteps();}
-function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();}
+
+async function createRoom(){
+  try{
+    state.role='sender';
+    showPanel('room');
+    updateStatus('Opening a channel…',false);
+    await createPeer();
+    drawQR();
+    updateStatus('Waiting for a device to scan this code…',false);
+  }catch(e){
+    console.error(e);
+    toast('Could not open a room: '+e.message);
+  }
+}
+
+function openJoin(){state.role='receiver';showPanel('join');startScanner();}
+
+async function startScanner(){
+  if(state.scanner)return;
+  state.scanner=new Html5Qrcode('reader');
+  try{
+    await state.scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:230,height:230}},text=>{
+      const d=parseInvite(text);
+      if(d){stopScanner();connectToPeer(d.p);}
+    },()=>{});
+  }catch(e){
+    console.error(e);
+    toast('Could not access the camera');
+  }
+}
+function stopScanner(){
+  if(!state.scanner)return;
+  try{state.scanner.stop();state.scanner.clear();}catch(e){}
+  state.scanner=null;
+}
+
+async function connectToPeer(id){
+  try{
+    showPanel('receive');
+    updatePeerStatus('Connecting to the sender…');
+    if(!state.peer){
+      state.peer=new Peer(undefined,PEER_OPTIONS);
+      await new Promise((res,rej)=>{state.peer.on('open',()=>res());state.peer.on('error',rej);});
+    }
+    state.role='receiver';
+    const conn=state.peer.connect(id,{reliable:true});
+    bindConnection(conn,'receiver');
+  }catch(e){
+    console.error(e);
+    toast('Could not connect');
+  }
+}
+
+function sendFile(file){
+  if(!state.conn||!state.conn.open){toast('Connect a device first');return;}
+  state.fileQueue.push(file);
+  if(!state.sending)processQueue();
+}
+
+function processQueue(){
+  if(state.sending||state.fileQueue.length===0)return;
+  state.sending=true;
+  const file=state.fileQueue.shift();
+  doSendFile(file).then(()=>{
+    state.sending=false;
+    processQueue();
+  }).catch(err=>{
+    console.error('File transfer failed:',err);
+    toast('Send failed: '+err.message);
+    state.sending=false;
+    processQueue();
+  });
+}
+
+function doSendFile(file){
+  return new Promise((resolve,reject)=>{
+    const id=crypto.randomUUID();
+    const meta={kind:'start',id,name:file.name,size:file.size,type:file.type||'application/octet-stream',lastModified:file.lastModified};
+    state.conn.send(meta);
+    let offset=0,sent=0;
+    const row=addSenderRow(id,file);
+    const total=file.size;
+
+    function fail(err){
+      const status=row.querySelector('.file-status');
+      if(status){status.textContent='Failed';status.classList.add('failed');}
+      reject(err);
+    }
+
+    function sendNextChunk(){
+      if(offset>=total){
+        state.conn.send({kind:'end',id});
+        const metaEl=row.querySelector('.file-meta');
+        if(metaEl)metaEl.textContent=bytes(total)+' · sent';
+        const status=row.querySelector('.file-status');
+        if(status){status.textContent='Done';status.classList.add('done');}
+        resolve();
+        return;
+      }
+      if(state.conn.bufferedAmount>BUFFER_THRESHOLD){setTimeout(sendNextChunk,50);return;}
+      const end=Math.min(offset+CHUNK_SIZE,total);
+      file.slice(offset,end).arrayBuffer().then(buf=>{
+        if(!state.conn||!state.conn.open){fail(new Error('Connection closed'));return;}
+        state.conn.send({kind:'chunk',id,offset,data:buf});
+        sent=end;offset=end;
+        const pct=total?(sent/total*100):100;
+        const fill=row.querySelector('.fill');
+        if(fill)fill.style.width=pct+'%';
+        setTimeout(sendNextChunk,5);
+      }).catch(fail);
+    }
+    sendNextChunk();
+  });
+}
+
+function addSenderRow(id,file){
+  const wrap=$('#senderFiles');
+  if(wrap.querySelector('.empty-state'))wrap.innerHTML='';
+  const div=document.createElement('div');
+  div.className='file-item';
+  div.id='s-'+id;
+  div.innerHTML='<div class="file-icon">'+fileIconSVG(file.type,file.name)+'</div><div class="file-info"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+bytes(file.size)+' · sending</div><div class="progress-bar"><span class="fill" style="width:0%"></span></div></div><span class="file-status">…</span>';
+  wrap.prepend(div);
+  return div;
+}
+
+function receiveMessage(m){
+  if(!m?.kind)return;
+  if(m.kind==='start'){
+    state.rx.set(m.id,{meta:m,parts:[],received:0});
+    renderReceiver();
+  }else if(m.kind==='chunk'){
+    const r=state.rx.get(m.id);
+    if(!r)return;
+    r.parts.push(m.data);
+    r.received+=m.data.byteLength||0;
+    renderReceiver();
+  }else if(m.kind==='end'){
+    const r=state.rx.get(m.id);
+    if(!r)return;
+    const blob=new Blob(r.parts,{type:r.meta.type});
+    r.blob=blob;
+    r.done=true;
+    renderReceiver();
+    toast('Received '+r.meta.name);
+  }
+}
+
+function renderReceiver(){
+  const box=$('#receiverFiles');
+  if(!state.rx.size){box.innerHTML='<div class="empty-state">Waiting for the sender to add files…</div>';return;}
+  box.innerHTML='';
+  state.rx.forEach((r,id)=>{
+    const pct=r.meta.size?Math.min(100,r.received/r.meta.size*100):0;
+    const div=document.createElement('div');
+    div.className='file-item';
+    div.innerHTML='<div class="file-icon">'+fileIconSVG(r.meta.type,r.meta.name)+'</div><div class="file-info"><div class="file-name">'+esc(r.meta.name)+'</div><div class="file-meta">'+bytes(r.received)+' / '+bytes(r.meta.size)+'</div><div class="progress-bar"><span class="fill" style="width:'+pct+'%"></span></div></div>'+(r.done?'<button class="btn btn-sm btn-success" data-id="'+id+'">Save</button>':'<span class="file-status">…</span>');
+    if(r.done){
+      div.querySelector('button').addEventListener('click',()=>downloadBlob(r.blob,r.meta.name));
+    }
+    box.appendChild(div);
+  });
+  updateSteps();
+}
+
+function downloadBlob(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 function uploadSelected(files){[...files].forEach(f=>sendFile(f));}
+
+function resetSession(){
+  stopScanner();
+  if(state.conn)state.conn.close();
+  if(state.peer)state.peer.destroy();
+  state.peer=null;state.conn=null;state.peerId=null;
+  state.rx.clear();state.fileQueue=[];state.sending=false;
+}
+
 $('#createBtn').addEventListener('click',createRoom);
 $('#scanBtn').addEventListener('click',openJoin);
-$('#backBtn').addEventListener('click',()=>{stopScanner();if(state.conn)state.conn.close();if(state.peer)state.peer.destroy();state.peer=null;state.conn=null;state.rx.clear();state.fileQueue=[];state.sending=false;showPanel(null);toast('Возврат на главный экран');});
+$('#backBtn').addEventListener('click',()=>{resetSession();showPanel(null);toast('Back to start');});
 $('#chooseBtn').addEventListener('click',()=>$('#fileInput').click());
 $('#fileInput').addEventListener('change',e=>uploadSelected(e.target.files));
 $('#copyBtn').addEventListener('click',copyInvite);
 $('#copyQrBtn').addEventListener('click',copyQRImage);
-$('#copyQrBtn2').addEventListener('click',copyQRImage);
-$('#qrContainer').addEventListener('click',()=>{const el=$('#qrContainer');el.classList.remove('clicked');void el.offsetWidth;el.classList.add('clicked');copyInvite();});
-$('#closeBtn').addEventListener('click',()=>{if(state.conn)state.conn.close();if(state.peer)state.peer.destroy();state.peer=null;state.conn=null;state.fileQueue=[];state.sending=false;showPanel(null);toast('Комната закрыта');});
-$('#leaveBtn').addEventListener('click',()=>{if(state.conn)state.conn.close();state.conn=null;state.peer=null;showPanel(null);toast('Соединение закрыто');});
-$('#manualBtn').addEventListener('click',()=>{const val=$('#manualInput').value;const d=parseInvite(val);if(!d)return toast('Неверная ссылка');stopScanner();connectToPeer(d.p);});
-const drop=$('#dropZone');['dragenter','dragover'].forEach(ev=>{drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');});});['dragleave','drop'].forEach(ev=>{drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');});});drop.addEventListener('drop',e=>{e.preventDefault();uploadSelected(e.dataTransfer.files);});
-window.addEventListener('beforeunload',()=>{});
+$('#qrContainer').addEventListener('click',()=>{
+  const el=$('#qrContainer');
+  el.classList.remove('clicked');void el.offsetWidth;el.classList.add('clicked');
+  copyInvite();
+});
+$('#qrContainer').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();copyInvite();}});
+$('#closeBtn').addEventListener('click',()=>{resetSession();showPanel(null);toast('Room closed');});
+$('#leaveBtn').addEventListener('click',()=>{resetSession();showPanel(null);toast('Disconnected');});
+$('#manualBtn').addEventListener('click',()=>{
+  const d=parseInvite($('#manualInput').value);
+  if(!d)return toast('That link looks invalid');
+  stopScanner();
+  connectToPeer(d.p);
+});
+
+const drop=$('#dropZone');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+drop.addEventListener('drop',e=>{e.preventDefault();uploadSelected(e.dataTransfer.files);});
+
 showPanel(null);
 </script>
 </body>
