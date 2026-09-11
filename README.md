@@ -81,9 +81,9 @@ Drag files into the room and they stream straight to the other device, chunk by 
 
 ```
 qr-share/
-├── index.html           # The whole app (UI + WebRTC logic, single file)
+├── index.html
 ├── images/
-│   └── ico.ico          # Favicon (optional)
+│   └── ico.ico
 └── README.md
 ```
 
